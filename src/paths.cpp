@@ -51,13 +51,19 @@ std::vector<ScanLine> hatchContours(const std::vector<Contour>& contours, double
 
     const auto kFirst = static_cast<long long>(std::ceil(ymin / spacing - 0.5)) - 1;
     const auto kLast = static_cast<long long>(std::floor(ymax / spacing - 0.5)) + 1;
-    const std::size_t nLines = static_cast<std::size_t>(kLast - kFirst + 1);
     auto lineY = [&](long long k) { return (static_cast<double>(k) + 0.5) * spacing; };
 
     // Bucket edge crossings per scanline: O(E + crossings) instead of O(E * lines).
     // Half-open rule (p.y <= y) != (q.y <= y): a scanline through a vertex counts
     // exactly one of the two edges meeting there, so even-odd pairing stays valid.
-    std::vector<std::vector<double>> xs(nLines);
+    // Crossings are collected as (line, x) pairs in one flat vector and sorted,
+    // which avoids one allocation per scanline.
+    struct Hit {
+        std::size_t line;
+        double x;
+    };
+    std::vector<Hit> hits;
+    hits.reserve(edges.size());
     for (const Edge& e : edges) {
         const double lo = std::min(e.p.y, e.q.y);
         const double hi = std::max(e.p.y, e.q.y);
@@ -69,25 +75,27 @@ std::vector<ScanLine> hatchContours(const std::vector<Contour>& contours, double
             const double y = lineY(k);
             if ((e.p.y <= y) != (e.q.y <= y)) {
                 const double x = e.p.x + (y - e.p.y) * (e.q.x - e.p.x) / (e.q.y - e.p.y);
-                xs[static_cast<std::size_t>(k - kFirst)].push_back(x);
+                hits.push_back({static_cast<std::size_t>(k - kFirst), x});
             }
         }
     }
+    std::sort(hits.begin(), hits.end(),
+              [](const Hit& a, const Hit& b) { return a.line != b.line ? a.line < b.line : a.x < b.x; });
 
     bool reverse = false;
     std::vector<ScanLine> row;
-    for (std::size_t li = 0; li < nLines; ++li) {
-        std::vector<double>& x = xs[li];
-        if (x.size() < 2) continue;
-        std::sort(x.begin(), x.end());
-        const double y = lineY(kFirst + static_cast<long long>(li));
+    for (std::size_t h = 0; h < hits.size();) {
+        std::size_t e = h;
+        while (e < hits.size() && hits[e].line == hits[h].line) ++e;
+        const double y = lineY(kFirst + static_cast<long long>(hits[h].line));
         row.clear();
-        for (std::size_t i = 0; i + 1 < x.size(); i += 2) {  // even-odd: inside between pairs
-            const double x0 = x[i] + inset;
-            const double x1 = x[i + 1] - inset;
+        for (std::size_t i = h; i + 1 < e; i += 2) {  // even-odd: inside between pairs
+            const double x0 = hits[i].x + inset;
+            const double x1 = hits[i + 1].x - inset;
             if (x1 - x0 <= 0.0) continue;
             row.push_back({rot.toWorld({x0, y}), rot.toWorld({x1, y})});
         }
+        h = e;
         if (row.empty()) continue;
         if (reverse) {
             std::reverse(row.begin(), row.end());

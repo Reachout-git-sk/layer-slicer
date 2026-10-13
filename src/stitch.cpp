@@ -1,8 +1,6 @@
 #include "layerslicer/stitch.h"
 
 #include <cmath>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace ls {
 
@@ -59,31 +57,37 @@ StitchResult stitchSegments(const std::vector<Segment>& segments, double toleran
     StitchResult result;
     result.inputSegments = segments.size();
 
-    // 1. Merge endpoints: spatial hash GridKey -> node id.
-    std::unordered_map<GridKey, std::uint32_t, GridKeyHash> nodeOf;
-    nodeOf.reserve(segments.size() * 2);
+    // 1. Merge endpoints: spatial hash GridKey -> node id. Open addressing in
+    //    flat arrays keeps this to a couple of allocations per layer, which
+    //    matters when many threads slice at once (no allocator contention).
+    std::size_t capacity = 16;
+    while (capacity < segments.size() * 4) capacity <<= 1;
+    std::vector<GridKey> slotKey(capacity);
+    std::vector<std::uint32_t> slotNode(capacity, kNone);
+    const std::size_t mask = capacity - 1;
     std::vector<Vec2> nodePos;
-    nodePos.reserve(segments.size());
+    nodePos.reserve(segments.size() + 1);
     auto node = [&](Vec2 p) {
-        auto [it, inserted] = nodeOf.try_emplace(quantize(p, tolerance), static_cast<std::uint32_t>(nodePos.size()));
-        if (inserted) nodePos.push_back(p);
-        return it->second;
+        const GridKey key = quantize(p, tolerance);
+        std::size_t i = GridKeyHash{}(key) & mask;
+        while (slotNode[i] != kNone) {
+            if (slotKey[i] == key) return slotNode[i];
+            i = (i + 1) & mask;
+        }
+        slotKey[i] = key;
+        slotNode[i] = static_cast<std::uint32_t>(nodePos.size());
+        nodePos.push_back(p);
+        return slotNode[i];
     };
 
     std::vector<std::uint32_t> from, to;
     from.reserve(segments.size());
     to.reserve(segments.size());
-    std::unordered_set<std::uint64_t> seen;
-    seen.reserve(segments.size());
     for (const Segment& s : segments) {
         const std::uint32_t a = node(s.a);
         const std::uint32_t b = node(s.b);
         if (a == b) {
             ++result.degenerateSegments;
-            continue;
-        }
-        if (!seen.insert((static_cast<std::uint64_t>(a) << 32) | b).second) {
-            ++result.duplicateSegments;
             continue;
         }
         from.push_back(a);
@@ -105,6 +109,19 @@ StitchResult stitchSegments(const std::vector<Segment>& segments, double toleran
         for (std::size_t i = 0; i < nSegs; ++i) outList[fill[from[i]]++] = static_cast<std::uint32_t>(i);
     }
     std::vector<char> used(nSegs, 0);
+    // Identical directed segments (e.g. a duplicated triangle) share a start
+    // node, so they are found by scanning each node's short outgoing list.
+    for (std::size_t n = 0; n < nNodes; ++n) {
+        for (std::uint32_t i = outStart[n]; i < outStart[n + 1]; ++i) {
+            for (std::uint32_t j = outStart[n]; j < i; ++j) {
+                if (!used[outList[j]] && to[outList[j]] == to[outList[i]]) {
+                    used[outList[i]] = 1;
+                    ++result.duplicateSegments;
+                    break;
+                }
+            }
+        }
+    }
     auto nextUnused = [&](std::uint32_t n) {
         while (cursor[n] < outStart[n + 1]) {
             const std::uint32_t s = outList[cursor[n]];
