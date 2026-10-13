@@ -277,19 +277,19 @@ There are 52 GoogleTest cases in 14 suites, plus 2 smoke tests that run
   1/2/4/8 threads, and reports the per-thread-count median. The command was run
   3 times, and the table shows the median of the three medians.
 - **Machine:** Intel Core i5-10300H (4 cores / 8 threads), Windows 11, Qt MinGW
-  13.1 `-O3`. Other processes kept the CPU 55–90% busy during the runs.
+  13.1 `-O3`, otherwise idle.
 
 | threads | run 1 (ms) | run 2 (ms) | run 3 (ms) | **median (ms)** | speedup |
 |---:|---:|---:|---:|---:|---:|
-| 1 | 618.5 | 784.5 | 548.6 | **618.5** | 1.00× |
-| 2 | 296.3 | 321.3 | 263.7 | **296.3** | 2.09× |
-| 4 | 186.3 | 272.2 | 268.4 | **268.4** | 2.30× |
-| 8 | 228.9 | 244.0 | 195.3 | **228.9** | 2.70× |
+| 1 | 291.6 | 281.1 | 264.7 | **281.1** | 1.00× |
+| 2 | 155.2 | 142.8 | 137.7 | **142.8** | 1.97× |
+| 4 | 81.2 | 84.0 | 86.6 | **84.0** | 3.35× |
+| 8 | 67.6 | 69.0 | 72.2 | **69.0** | 4.07× |
 
-Going from 4 to 8 threads gains little: the CPU has 4 physical cores, so threads
-5–8 are hyperthreads, and the background load competed for those cores. An
-earlier run on a less loaded machine measured 340 / 222 / 86 / 87 ms (3.9× on 4
-threads).
+Scaling is close to linear up to 4 threads. Going from 4 to 8 gains much less,
+because the CPU has 4 physical cores and threads 5–8 are hyperthreads sharing
+them. Slicing all 520 layers of the 153,600-triangle model takes 69 ms on 8
+threads.
 
 ## Layout
 
