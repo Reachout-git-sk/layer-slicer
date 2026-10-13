@@ -107,10 +107,12 @@ public:
         if (tok != word) fail("expected '" + std::string(word) + "', got '" + std::string(tok) + "'");
     }
 
+    // Values are read as 32-bit floats, the precision STL defines, so ASCII and
+    // binary files of the same model load identically.
     double number() {
         std::string_view tok;
         if (!next(tok)) fail("unexpected end of file, expected a number");
-        double value = 0.0;
+        float value = 0.0f;
         const char* first = tok.data();
         const char* last = tok.data() + tok.size();
         if (first != last && *first == '+') ++first;  // from_chars rejects a leading '+'
