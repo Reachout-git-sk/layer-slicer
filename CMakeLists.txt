@@ -43,3 +43,28 @@ endfunction()
 add_executable(gen_models apps/gen_models/main.cpp)
 target_link_libraries(gen_models PRIVATE layerslicer_core)
 layer_slicer_warnings(gen_models)
+
+if(LAYER_SLICER_BUILD_TESTS)
+  include(FetchContent)
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+  )
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+  set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+  FetchContent_MakeAvailable(googletest)
+
+  enable_testing()
+  add_executable(layer_slicer_tests
+    tests/test_stl.cpp
+    tests/test_slicing.cpp
+    tests/test_paths.cpp
+    tests/test_parallel.cpp
+  )
+  target_link_libraries(layer_slicer_tests PRIVATE layerslicer_core GTest::gtest_main)
+  layer_slicer_warnings(layer_slicer_tests)
+  include(GoogleTest)
+  gtest_discover_tests(layer_slicer_tests DISCOVERY_TIMEOUT 60)
+endif()
