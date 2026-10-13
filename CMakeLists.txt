@@ -20,6 +20,7 @@ add_library(layerslicer_core STATIC
   src/intersect.cpp
   src/geometry.cpp
   src/stitch.cpp
+  src/paths.cpp
 )
 target_include_directories(layerslicer_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(layerslicer_core PUBLIC Threads::Threads)
