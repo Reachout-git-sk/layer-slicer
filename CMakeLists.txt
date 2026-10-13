@@ -48,6 +48,21 @@ add_executable(slicer_cli apps/cli/main.cpp)
 target_link_libraries(slicer_cli PRIVATE layerslicer_core)
 layer_slicer_warnings(slicer_cli)
 
+if(LAYER_SLICER_BUILD_VIEWER)
+  find_package(Qt6 REQUIRED COMPONENTS Widgets)
+  set(CMAKE_AUTOMOC ON)
+  qt_add_executable(layer_slicer_viewer
+    apps/viewer/main.cpp
+    apps/viewer/main_window.cpp
+    apps/viewer/main_window.h
+    apps/viewer/slice_view.cpp
+    apps/viewer/slice_view.h
+  )
+  target_link_libraries(layer_slicer_viewer PRIVATE layerslicer_core Qt6::Widgets)
+  set_target_properties(layer_slicer_viewer PROPERTIES WIN32_EXECUTABLE ON)
+  layer_slicer_warnings(layer_slicer_viewer)
+endif()
+
 if(LAYER_SLICER_BUILD_TESTS)
   include(FetchContent)
   FetchContent_Declare(
@@ -71,4 +86,19 @@ if(LAYER_SLICER_BUILD_TESTS)
   layer_slicer_warnings(layer_slicer_tests)
   include(GoogleTest)
   gtest_discover_tests(layer_slicer_tests DISCOVERY_TIMEOUT 60)
+endif()
+
+# Smoke tests for the executables.
+if(LAYER_SLICER_BUILD_TESTS)
+  add_test(NAME cli_slices_cube COMMAND slicer_cli ${CMAKE_CURRENT_SOURCE_DIR}/models/cube.stl --quiet)
+  if(LAYER_SLICER_BUILD_VIEWER)
+    add_test(NAME viewer_screenshot
+             COMMAND layer_slicer_viewer ${CMAKE_CURRENT_SOURCE_DIR}/models/torus.stl --layer 20
+                     --screenshot ${CMAKE_CURRENT_BINARY_DIR}/viewer_smoke.png)
+    set_tests_properties(viewer_screenshot PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    if(WIN32 AND NOT CMAKE_VERSION VERSION_LESS 3.22)
+      get_filename_component(_qt_bin "${Qt6_DIR}/../../../bin" ABSOLUTE)
+      set_tests_properties(viewer_screenshot PROPERTIES ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${_qt_bin}")
+    endif()
+  endif()
 endif()
