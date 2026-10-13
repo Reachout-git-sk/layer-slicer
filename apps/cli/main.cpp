@@ -108,21 +108,29 @@ int main(int argc, char** argv) {
         std::printf("hardware   %u threads\n", std::thread::hardware_concurrency());
 
         if (bench) {
-            std::printf("\nbenchmark: full pipeline (intersect + stitch + paths), %d run(s) each, median\n", repeat);
-            std::printf("%8s %12s %12s %12s %9s\n", "threads", "median ms", "min ms", "max ms", "speedup");
-            double base = 0.0;
-            for (unsigned n : {1u, 2u, 4u, 8u}) {
-                std::vector<double> times;
-                for (int r = 0; r < repeat; ++r) {
+            // Rounds are interleaved (1, 2, 4, 8, 1, 2, 4, 8, ...) after one
+            // warm-up pass so that background load drifts affect every thread
+            // count alike; the median per thread count is reported.
+            const unsigned counts[] = {1u, 2u, 4u, 8u};
+            std::vector<std::vector<double>> times(4);
+            if (slicer.sliceAll(zs, 0).size() != zs.size()) return 1;  // warm-up
+            for (int r = 0; r < repeat; ++r) {
+                for (std::size_t c = 0; c < 4; ++c) {
                     const auto t = Clock::now();
-                    const auto layers = slicer.sliceAll(zs, n);
-                    times.push_back(msSince(t));
+                    const auto layers = slicer.sliceAll(zs, counts[c]);
+                    times[c].push_back(msSince(t));
                     if (layers.size() != zs.size()) return 1;
                 }
-                const double med = median(times);
-                if (n == 1) base = med;
-                std::printf("%8u %12.1f %12.1f %12.1f %8.2fx\n", n, med, *std::min_element(times.begin(), times.end()),
-                            *std::max_element(times.begin(), times.end()), base / med);
+            }
+            std::printf("\nbenchmark: full pipeline (intersect + stitch + paths), %d interleaved round(s), median\n",
+                        repeat);
+            std::printf("%8s %12s %12s %12s %9s\n", "threads", "median ms", "min ms", "max ms", "speedup");
+            const double base = median(times[0]);
+            for (std::size_t c = 0; c < 4; ++c) {
+                const double med = median(times[c]);
+                std::printf("%8u %12.1f %12.1f %12.1f %8.2fx\n", counts[c], med,
+                            *std::min_element(times[c].begin(), times[c].end()),
+                            *std::max_element(times[c].begin(), times[c].end()), base / med);
             }
             return 0;
         }
