@@ -1,0 +1,10 @@
+build/
+build-*/
+out/
+cmake-build-*/
+.vscode/
+.idea/
+*.user
+CMakeUserPresets.json
+# Large procedural benchmark model (re-create with gen_models)
+models/torus_knot.stl
