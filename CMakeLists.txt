@@ -44,6 +44,10 @@ add_executable(gen_models apps/gen_models/main.cpp)
 target_link_libraries(gen_models PRIVATE layerslicer_core)
 layer_slicer_warnings(gen_models)
 
+add_executable(slicer_cli apps/cli/main.cpp)
+target_link_libraries(slicer_cli PRIVATE layerslicer_core)
+layer_slicer_warnings(slicer_cli)
+
 if(LAYER_SLICER_BUILD_TESTS)
   include(FetchContent)
   FetchContent_Declare(
