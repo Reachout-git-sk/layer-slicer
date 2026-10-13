@@ -22,6 +22,7 @@ add_library(layerslicer_core STATIC
   src/stitch.cpp
   src/paths.cpp
   src/slicer.cpp
+  src/mesh_gen.cpp
 )
 target_include_directories(layerslicer_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(layerslicer_core PUBLIC Threads::Threads)
@@ -30,3 +31,15 @@ if(MSVC)
 else()
   target_compile_options(layerslicer_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+function(layer_slicer_warnings target)
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /W4)
+  else()
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+  endif()
+endfunction()
+
+add_executable(gen_models apps/gen_models/main.cpp)
+target_link_libraries(gen_models PRIVATE layerslicer_core)
+layer_slicer_warnings(gen_models)
